@@ -75,11 +75,24 @@ def meta(text: str) -> Block:
     return ("meta", text)
 
 
+def _typeset(text: str) -> str:
+    """Source stays ASCII; the rendered report gets a real dash."""
+    return str(text).replace(" -- ", " — ")
+
+
+def _typeset_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    out = frame.copy()
+    for column in out.columns:
+        if out[column].dtype == object:
+            out[column] = out[column].map(_typeset)
+    return out
+
+
 def _markdown_table(frame: pd.DataFrame) -> str:
     columns = [str(c).replace("_", " ") for c in frame.columns]
     lines = ["| " + " | ".join(columns) + " |"]
     lines.append("|" + "|".join(["---"] * len(columns)) + "|")
-    for _, row in frame.iterrows():
+    for _, row in _typeset_frame(frame).iterrows():
         cells = [str(v).replace("|", "/").replace("\n", " ") for v in row.tolist()]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
@@ -91,13 +104,13 @@ def render_markdown(blocks: List[Block]) -> str:
         if kind.startswith("h") and len(kind) == 2:
             out.append("{} {}".format("#" * int(kind[1]), payload))
         elif kind == "p":
-            out.append(payload)
+            out.append(_typeset(payload))
         elif kind == "meta":
-            out.append("*{}*".format(payload))
+            out.append("*{}*".format(_typeset(payload)))
         elif kind == "callout":
-            out.append("> {}".format(payload))
+            out.append("> {}".format(_typeset(payload)))
         elif kind == "ul":
-            out.append("\n".join("- {}".format(item) for item in payload))
+            out.append("\n".join("- {}".format(_typeset(item)) for item in payload))
         elif kind == "table":
             out.append(_markdown_table(payload))
         elif kind == "figure":
@@ -107,9 +120,8 @@ def render_markdown(blocks: List[Block]) -> str:
 
 
 def _escape(text: str) -> str:
-    return (
-        str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    )
+    safe = str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return _typeset(safe)
 
 
 def render_html(blocks: List[Block], title: str) -> str:
@@ -133,7 +145,9 @@ def render_html(blocks: List[Block], title: str) -> str:
             out.append("<ul>{}</ul>".format(items))
         elif kind == "table":
             out.append(
-                payload.to_html(index=False, border=0, escape=True, na_rep="")
+                _typeset_frame(payload).to_html(
+                    index=False, border=0, escape=True, na_rep=""
+                )
             )
         elif kind == "figure":
             path, caption = payload

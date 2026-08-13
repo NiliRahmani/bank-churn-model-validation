@@ -77,7 +77,7 @@ def meta(text: str) -> Block:
 
 def _typeset(text: str) -> str:
     """Source stays ASCII; the rendered report gets a real dash."""
-    return str(text).replace(" -- ", " — ")
+    return str(text).replace(" -- ", " \u2014 ")
 
 
 def _typeset_frame(frame: pd.DataFrame) -> pd.DataFrame:

@@ -1,0 +1,10 @@
+required_section,present
+Purpose and intended use,Yes
+Data sources and lineage,Yes
+Variable selection,Yes
+Model methodology,Yes
+Performance testing,Yes
+Assumptions and limitations,No
+Ongoing monitoring plan,No
+Benchmark comparison,No
+Implementation and controls,Yes

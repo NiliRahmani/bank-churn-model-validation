@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Model Validation Report - RB-CHURN-07</title>
+<style>
+:root { color-scheme: light; }
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: #0b0b0b; background: #fcfcfb;
+  margin: 0 auto; padding: 32px 40px 56px; max-width: 860px;
+  font-size: 10.5pt; line-height: 1.55;
+}
+h1 { font-size: 21pt; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 13.5pt; margin: 30px 0 10px; padding-bottom: 6px;
+     border-bottom: 1px solid #e1e0d9; }
+h3 { font-size: 11pt; margin: 20px 0 6px; color: #52514e; }
+p { margin: 0 0 10px; }
+ul { margin: 0 0 12px; padding-left: 20px; }
+li { margin-bottom: 5px; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0 18px;
+        font-size: 8.8pt; font-variant-numeric: tabular-nums; }
+th { text-align: left; background: #f0efec; color: #52514e;
+     font-weight: 600; padding: 6px 8px; border-bottom: 1px solid #c3c2b7; }
+td { padding: 5px 8px; border-bottom: 1px solid #e1e0d9; vertical-align: top; }
+tr:last-child td { border-bottom: 1px solid #c3c2b7; }
+figure { margin: 16px 0 20px; }
+figure img { width: 100%; border: 1px solid #e1e0d9; border-radius: 4px; }
+figcaption { font-size: 8.5pt; color: #898781; margin-top: 6px; }
+.meta { color: #52514e; font-size: 9.5pt; margin-bottom: 22px; }
+.callout { background: #f0efec; border-left: 3px solid #2a78d6;
+           padding: 12px 16px; margin: 16px 0 20px; }
+.callout p:last-child { margin-bottom: 0; }
+@page { size: A4; margin: 14mm 14mm 16mm; }
+h2 { break-after: avoid; }
+table, figure { break-inside: avoid; }
+</style></head><body>
+<h1>Model Validation Report</h1>
+<p class="meta">Retail Banking Attrition Propensity Model (RB-CHURN-07), version 2.1  |  Independent validation  |  Review date 2024-09-30  |  Reviewer: Niloufar Rahmani</p>
+<h2>1. Conclusion</h2>
+<div class="callout"><p>Outcome: Not approved for use. 2 High, 5 Medium and 1 Low findings are raised. Nothing in this report turns on a judgement call: each finding is a measurement the developer could have taken before submitting.</p></div>
+<p>The submission reports an AUC of 0.905. That figure is real: rebuilding the model from the recipe in the submission reproduces it exactly, seed included. It is not, however, a measure of what the model does in production. One of its fourteen inputs is written to the customer record after the customer has already given notice of leaving, so it will be empty at the moment a score is needed. Removing it and testing on the six months following the build window gives an AUC of 0.666 -- 48 Gini points below the figure the business case rests on.</p>
+<p>At that level the model is beaten by its own benchmark. A logistic regression on 8 variables, fitted on the same data, scores 0.700 on the same out-of-time sample against the champion's 0.666. The submission justifies the gradient-boosted model class on predictive power, and out-of-time it does not have any to justify it with. Those two results are the High findings. The model is not approved for use in its current form; section 14 sets out what would change that.</p>
+<h2>2. Scope and approach</h2>
+<p>This review covers the model as submitted for its scheduled periodic validation: the development sample (2023-01-01 to 2023-12-31), the out-of-time sample (2024-01-01 to 2024-06-30), the development document, and the fitted model rebuilt from that document. It does not cover the production scoring code, the campaign management system the scores are consumed by, or the vendor data feeds behind two of the inputs.</p>
+<p>Testing was carried out independently rather than by re-reading the developer's own analysis. Every number in this report was produced by code in this repository from the raw extract, and every test is one the developer could have run before submitting.</p>
+<ul><li>Data quality assessment of the extract, against the bank's six data quality dimensions</li><li>Completeness check of the development document against the required sections</li><li>Replication of the reported result from the documented recipe</li><li>Variable review, including whether each input is knowable at scoring time</li><li>Performance testing on an out-of-time sample the model did not see</li><li>Calibration of predicted probabilities against observed outcomes</li><li>Population stability of every input, and of the score itself</li><li>Comparison against a transparent benchmark model</li><li>Selection rate testing across age band and province</li></ul>
+<h2>3. Data quality assessment</h2>
+<p>The extract was tested before any modelling work. Rules are applied to the raw file as received, so the results describe what the developer was working with rather than what it becomes after treatment.</p>
+<table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>dimension</th>
+      <th>rule</th>
+      <th>records_failed</th>
+      <th>share_failed</th>
+      <th>outcome</th>
+      <th>note</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Uniqueness</td>
+      <td>customer_id appears once per observation window</td>
+      <td>480</td>
+      <td>0.0148</td>
+      <td>Fail</td>
+      <td>Extract was appended twice for part of the load.</td>
+    </tr>
+    <tr>
+      <td>Completeness</td>
+      <td>age is populated</td>
+      <td>68</td>
+      <td>0.0021</td>
+      <td>Fail</td>
+      <td>Age written as 0 where the value was not captured.</td>
+    </tr>
+    <tr>
+      <td>Completeness</td>
+      <td>credit_score is populated</td>
+      <td>355</td>
+      <td>0.0109</td>
+      <td>Fail</td>
+      <td>Two sentinel conventions in use: 999 and -1.</td>
+    </tr>
+    <tr>
+      <td>Validity</td>
+      <td>credit_score falls within 300-900</td>
+      <td>355</td>
+      <td>0.0109</td>
+      <td>Fail</td>
+      <td>Same records as the sentinel values above.</td>
+    </tr>
+    <tr>
+      <td>Validity</td>
+      <td>province uses the two-letter standard</td>
+      <td>879</td>
+      <td>0.0271</td>
+      <td>Fail</td>
+      <td>Long-form names and lower case arriving from upstream systems.</td>
+    </tr>
+    <tr>
+      <td>Consistency</td>
+      <td>province has at most 6 distinct values</td>
+      <td>15</td>
+      <td>0.0005</td>
+      <td>Fail</td>
+      <td>21 distinct values observed for 6 real provinces.</td>
+    </tr>
+    <tr>
+      <td>Accuracy</td>
+      <td>balance distinguishes a nil balance from a missing one</td>
+      <td>3892</td>
+      <td>0.1198</td>
+      <td>Fail</td>
+      <td>Zero is being used for both, which an average cannot tell apart.</td>
+    </tr>
+    <tr>
+      <td>Timeliness</td>
+      <td>development sample is under 12 months old at review</td>
+      <td>0</td>
+      <td>0.0000</td>
+      <td>Pass</td>
+      <td>Development window closed 9 months before this review.</td>
+    </tr>
+  </tbody>
+</table>
+<p>Failures were remediated in this review before the modelling tests, so that the champion, the benchmark and the corrected refits are all compared on the same treated data. The treatment applied was: de-duplicate on customer identifier, translate both credit score sentinels to a null plus an explicit missing indicator, separate an unsupplied balance from a nil one, and standardise province codes. None of this treatment is described in the submission.</p>
+<h2>4. Documentation completeness</h2>
+<table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>required_section</th>
+      <th>present</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Purpose and intended use</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Data sources and lineage</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Variable selection</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Model methodology</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Performance testing</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Assumptions and limitations</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Ongoing monitoring plan</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Benchmark comparison</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Implementation and controls</td>
+      <td>Yes</td>
+    </tr>
+  </tbody>
+</table>
+<h2>5. Replication</h2>
+<p>The model was rebuilt from sections 3 and 4 of the development document, using the developer's split, class balancing and hyperparameters, and scored on their own held-out sample.</p>
+<table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>reported_auc</th>
+      <th>replicated_auc</th>
+      <th>absolute_difference</th>
+      <th>tolerance</th>
+      <th>outcome</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>0.9046</td>
+      <td>0.9046</td>
+      <td>0.0</td>
+      <td>0.01</td>
+      <td>Replicated</td>
+    </tr>
+  </tbody>
+</table>
+<p>The result replicates. This is a genuine strength of the submission and it is recorded as such: the recipe in the document is complete enough for a third party to reproduce the model, which is not always the case. Everything that follows is about what the reported number measures, not about whether it is real.</p>
+<h2>6. Variable review</h2>
+<p>Each input was scored on its own against the outcome. The test is deliberately blunt: a single variable that separates churners from non-churners almost perfectly is either the most valuable field the bank owns, or it is not available at the time the model runs.</p>
+<table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>variable</th>
+      <th>standalone_auc</th>
+      <th>flagged</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>retention_call_flag</td>
+      <td>0.8718</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>is_active_member</td>
+      <td>0.6265</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>tenure_months</td>
+      <td>0.5908</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>complaints_12m</td>
+      <td>0.5743</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>age</td>
+      <td>0.5729</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>credit_score</td>
+      <td>0.5648</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>num_products</td>
+      <td>0.5553</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>channel</td>
+      <td>0.5439</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>digital_logins_90d</td>
+      <td>0.5407</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>product_bundle_code</td>
+      <td>0.5380</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>estimated_income</td>
+      <td>0.5287</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>has_credit_card</td>
+      <td>0.5255</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>province</td>
+      <td>0.5139</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>balance</td>
+      <td>0.5078</td>
+      <td>No</td>
+    </tr>
+  </tbody>
+</table>
+<p>The strongest input reaches 0.872 on its own, against 0.626 for the strongest of the remaining thirteen. The data dictionary records it as written when a retention call is logged, and retention calls are placed after a customer has given notice. It is a record of the outcome, not a predictor of it, and it cannot be populated at the moment a score is needed. This is finding VF-01.</p>
+<h2>7. Performance testing</h2>
+<p>Four states of the model are compared on the same footing: as submitted on the developer's random holdout, as submitted on the following six months, refit without the post-outcome variable, and a transparent benchmark.</p>
+<table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>model</th>
+      <th>sample</th>
+      <th>customers</th>
+      <th>churn_rate</th>
+      <th>auc</th>
+      <th>gini</th>
+      <th>ks</th>
+      <th>calibration_error</th>
+      <th>lift_top_20pct</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Champion as submitted</td>
+      <td>Developer random holdout</td>
+      <td>7200</td>
+      <td>0.1000</td>
+      <td>0.9046</td>
+      <td>0.8092</td>
+      <td>0.7340</td>
+      <td>0.0779</td>
+      <td>4.188</td>
+    </tr>
+    <tr>
+      <td>Champion as submitted</td>
+      <td>Out-of-time</td>
+      <td>8000</td>
+      <td>0.1522</td>
+      <td>0.8997</td>
+      <td>0.7993</td>
+      <td>0.7250</td>
+      <td>0.0617</td>
+      <td>4.002</td>
+    </tr>
+    <tr>
+      <td>Champion without post-outcome variable</td>
+      <td>Out-of-time</td>
+      <td>8000</td>
+      <td>0.1522</td>
+      <td>0.6661</td>
+      <td>0.3322</td>
+      <td>0.2476</td>
+      <td>0.2023</td>
+      <td>1.884</td>
+    </tr>
+    <tr>
+      <td>Logistic benchmark (8 variables)</td>
+      <td>Out-of-time</td>
+      <td>8000</td>
+      <td>0.1522</td>
+      <td>0.7004</td>
+      <td>0.4008</td>
+      <td>0.3070</td>
+      <td>0.0521</td>
+      <td>2.028</td>
+    </tr>
+  </tbody>
+</table>
+<figure><img src="../assets/roc_comparison.png"><figcaption>The gap between the submitted result and out-of-time performance, before and after the post-outcome variable is removed.</figcaption></figure>
+<p>The two causes are worth separating, because they do not carry equal weight. Moving the model as submitted from the random holdout to the out-of-time sample costs almost nothing (0.905 to 0.900), since the post-outcome variable is present in both. Removing that variable on the same out-of-time sample costs 0.234. Practically all of the gap is one variable, and the later period accounts for 0.010 of it once the variable is out of the way.</p>
+<h2>8. Calibration</h2>
+<p>The model's output is used as a probability, so it was tested as one: customers were banded by predicted probability and the predicted rate compared against what actually happened in each band.</p>
+<p>This test is run on the model with the post-outcome variable removed. On the model as submitted that variable pushes almost every score to one extreme or the other, which conceals this problem rather than fixing it, and the corrected model is in any case the only version that could be deployed.</p>
+<table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>band</th>
+      <th>customers</th>
+      <th>predicted</th>
+      <th>observed</th>
+      <th>gap</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>(0.00309, 0.0804]</td>
+      <td>720</td>
+      <td>0.0495</td>
+      <td>0.0333</td>
+      <td>0.0162</td>
+    </tr>
+    <tr>
+      <td>(0.0804, 0.135]</td>
+      <td>720</td>
+      <td>0.1083</td>
+      <td>0.0417</td>
+      <td>0.0666</td>
+    </tr>
+    <tr>
+      <td>(0.135, 0.19]</td>
+      <td>720</td>
+      <td>0.1624</td>
+      <td>0.0556</td>
+      <td>0.1069</td>
+    </tr>
+    <tr>
+      <td>(0.19, 0.245]</td>
+      <td>720</td>
+      <td>0.2170</td>
+      <td>0.0597</td>
+      <td>0.1573</td>
+    </tr>
+    <tr>
+      <td>(0.245, 0.302]</td>
+      <td>720</td>
+      <td>0.2738</td>
+      <td>0.0861</td>
+      <td>0.1877</td>
+    </tr>
+    <tr>
+      <td>(0.302, 0.365]</td>
+      <td>720</td>
+      <td>0.3330</td>
+      <td>0.0889</td>
+      <td>0.2441</td>
+    </tr>
+    <tr>
+      <td>(0.365, 0.433]</td>
+      <td>720</td>
+      <td>0.4001</td>
+      <td>0.1056</td>
+      <td>0.2946</td>
+    </tr>
+    <tr>
+      <td>(0.433, 0.517]</td>
+      <td>720</td>
+      <td>0.4737</td>
+      <td>0.1500</td>
+      <td>0.3237</td>
+    </tr>
+    <tr>
+      <td>(0.517, 0.62]</td>
+      <td>720</td>
+      <td>0.5661</td>
+      <td>0.1569</td>
+      <td>0.4092</td>
+    </tr>
+    <tr>
+      <td>(0.62, 0.892]</td>
+      <td>720</td>
+      <td>0.7043</td>
+      <td>0.2222</td>
+      <td>0.4820</td>
+    </tr>
+  </tbody>
+</table>
+<figure><img src="../assets/calibration.png"><figcaption>Predicted against observed churn rate by band. Every band sits below the diagonal, so every band over-predicts.</figcaption></figure>
+<p>Mean predicted probability is 32.9% against an observed rate of 10.0%. The cause is in the developer's own recipe: the minority class was oversampled to a level base rate and the output was never mapped back. The ranking is unaffected, which is why the AUC does not show it, but any calculation that multiplies these probabilities by a dollar amount is overstated by roughly the same factor. This is finding VF-03.</p>
+<h2>9. Population stability</h2>
+<p>Stability was measured between the development window and the following six months, with bin edges taken from the development sample only.</p>
+<table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>variable</th>
+      <th>type</th>
+      <th>psi</th>
+      <th>band</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>channel</td>
+      <td>categorical</td>
+      <td>0.4367</td>
+      <td>Red</td>
+    </tr>
+    <tr>
+      <td>digital_logins_90d</td>
+      <td>numeric</td>
+      <td>0.3995</td>
+      <td>Red</td>
+    </tr>
+    <tr>
+      <td>age</td>
+      <td>numeric</td>
+      <td>0.0017</td>
+      <td>Green</td>
+    </tr>
+    <tr>
+      <td>balance</td>
+      <td>numeric</td>
+      <td>0.0016</td>
+      <td>Green</td>
+    </tr>
+    <tr>
+      <td>credit_score</td>
+      <td>numeric</td>
+      <td>0.0015</td>
+      <td>Green</td>
+    </tr>
+    <tr>
+      <td>province</td>
+      <td>categorical</td>
+      <td>0.0014</td>
+      <td>Green</td>
+    </tr>
+    <tr>
+      <td>estimated_income</td>
+      <td>numeric</td>
+      <td>0.0012</td>
+      <td>Green</td>
+    </tr>
+    <tr>
+      <td>tenure_months</td>
+      <td>numeric</td>
+      <td>0.0012</td>
+      <td>Green</td>
+    </tr>
+    <tr>
+      <td>num_products</td>
+      <td>numeric</td>
+      <td>0.0002</td>
+      <td>Green</td>
+    </tr>
+    <tr>
+      <td>product_bundle_code</td>
+      <td>categorical</td>
+      <td>0.0002</td>
+      <td>Green</td>
+    </tr>
+    <tr>
+      <td>complaints_12m</td>
+      <td>numeric</td>
+      <td>0.0001</td>
+      <td>Green</td>
+    </tr>
+    <tr>
+      <td>has_credit_card</td>
+      <td>numeric</td>
+      <td>0.0000</td>
+      <td>Green</td>
+    </tr>
+    <tr>
+      <td>is_active_member</td>
+      <td>numeric</td>
+      <td>0.0000</td>
+      <td>Green</td>
+    </tr>
+    <tr>
+      <td>retention_call_flag</td>
+      <td>numeric</td>
+      <td>0.0000</td>
+      <td>Green</td>
+    </tr>
+  </tbody>
+</table>
+<figure><img src="../assets/psi_by_variable.png"><figcaption>Population stability index by input, against the 0.10 amber and 0.25 red thresholds.</figcaption></figure>
+<p>The movement is a channel migration rather than a data fault: customers moved to mobile and their engagement counts moved with them. The score distribution is the part worth dwelling on. At PSI 0.02 it sits (green) well inside the acceptable band, so a monitoring process that watched the score alone would have reported this model as stable throughout, while two of its inputs moved by more than four times the red threshold. Score-level monitoring is the common choice because it is the cheapest, and this is the case it misses. This is finding VF-05.</p>
+<h2>10. Benchmark comparison</h2>
+<p>A logistic regression on 8 variables, fitted on the same treated development sample and scored on the same out-of-time sample, is used as the benchmark. It is not proposed as a replacement; it is there to establish how much of the champion's performance is attributable to its model class.</p>
+<p>Corrected champion 0.666 against benchmark 0.700. The benchmark is ahead by 0.034 AUC, so the comparison does not end in a question about whether the extra complexity is worth carrying -- it ends with the simpler model being more accurate on the period that matters. The champion's hyperparameters were selected against the random split, which is the ordinary way this outcome arises: the additional flexibility fitted the development window rather than the underlying relationship. This is finding VF-02.</p>
+<h2>11. Selection rate testing</h2>
+<p>The score decides who a retention campaign contacts, so the outcome that matters to a customer is whether they fall inside the top 20% the campaign can afford to reach. Selection rate was tested across age band and province.</p>
+<table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>age_band</th>
+      <th>customers</th>
+      <th>selected</th>
+      <th>observed_churn</th>
+      <th>selection_rate</th>
+      <th>impact_ratio</th>
+      <th>meets_four_fifths</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>18-29</td>
+      <td>469</td>
+      <td>141</td>
+      <td>0.2175</td>
+      <td>0.3006</td>
+      <td>1.0000</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>30-44</td>
+      <td>2878</td>
+      <td>806</td>
+      <td>0.1744</td>
+      <td>0.2801</td>
+      <td>0.9315</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>45-59</td>
+      <td>2739</td>
+      <td>487</td>
+      <td>0.1431</td>
+      <td>0.1778</td>
+      <td>0.5914</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>60+</td>
+      <td>1914</td>
+      <td>166</td>
+      <td>0.1160</td>
+      <td>0.0867</td>
+      <td>0.2885</td>
+      <td>No</td>
+    </tr>
+  </tbody>
+</table>
+<figure><img src="../assets/selection_by_age.png"><figcaption>Share of each age band contacted, against four-fifths of the highest band.</figcaption></figure>
+<table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>province</th>
+      <th>customers</th>
+      <th>selected</th>
+      <th>observed_churn</th>
+      <th>selection_rate</th>
+      <th>impact_ratio</th>
+      <th>meets_four_fifths</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>AB</td>
+      <td>1034</td>
+      <td>227</td>
+      <td>0.1528</td>
+      <td>0.2195</td>
+      <td>1.0000</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>BC</td>
+      <td>1219</td>
+      <td>214</td>
+      <td>0.1436</td>
+      <td>0.1756</td>
+      <td>0.7997</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>MB</td>
+      <td>438</td>
+      <td>90</td>
+      <td>0.1689</td>
+      <td>0.2055</td>
+      <td>0.9360</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>NS</td>
+      <td>372</td>
+      <td>71</td>
+      <td>0.1532</td>
+      <td>0.1909</td>
+      <td>0.8694</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>ON</td>
+      <td>3116</td>
+      <td>682</td>
+      <td>0.1508</td>
+      <td>0.2189</td>
+      <td>0.9970</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>QC</td>
+      <td>1821</td>
+      <td>316</td>
+      <td>0.1560</td>
+      <td>0.1735</td>
+      <td>0.7904</td>
+      <td>No</td>
+    </tr>
+  </tbody>
+</table>
+<p>Two separate questions are involved and the distinction matters. The first is whether the selection rate is uneven, and it is. Part of that is legitimate: the observed churn column shows the bands genuinely differ. The second is whether the model is reading a protected characteristic through another field, and it is. Product bundle code alone identifies customers aged 60 and over with an AUC of 0.947, so removing age from the feature list would not have changed the outcome, and the submission's statement that no protected characteristic is used is not accurate. Refitting without the bundle code costs 0.002 AUC. This is finding VF-06.</p>
+<h2>12. Findings register</h2>
+<table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>ref</th>
+      <th>severity</th>
+      <th>area</th>
+      <th>finding</th>
+      <th>observation</th>
+      <th>implication</th>
+      <th>recommendation</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>VF-01</td>
+      <td>High</td>
+      <td>Conceptual soundness</td>
+      <td>Model uses a variable that is only known after the outcome it predicts</td>
+      <td>retention_call_flag reaches a standalone AUC of 0.872 against a portfolio in which no other variable exceeds 0.626. The data dictionary records it as being written when a retention call is logged, and retention calls are placed after a customer has given notice of leaving. Flagged variables: retention_call_flag.</td>
+      <td>The variable will be absent, or will be zero for everyone, at the moment the model is actually scored. Every performance figure in the submission is therefore an overstatement of what the model can do in production, and the size of the overstatement is not disclosed.</td>
+      <td>Remove the variable, refit, and restate all reported performance. Add a point-in-time availability check to the development standard so the timing of every candidate variable is evidenced before it is used.</td>
+    </tr>
+    <tr>
+      <td>VF-02</td>
+      <td>High</td>
+      <td>Model selection</td>
+      <td>Champion is outperformed out-of-time by a logistic benchmark</td>
+      <td>On the out-of-time sample the corrected gradient-boosted model scores AUC 0.666 against 0.700 for a 8-variable logistic regression fitted on the same data, a difference of -0.034 against a parity margin of 0.020.</td>
+      <td>The submission justifies the model class on predictive power. Out-of-time it does not have any: the bank is carrying the monitoring, explainability and refit burden of a gradient-boosted model in exchange for 0.034 AUC less accuracy than a regression it could put in a spreadsheet. Tuning was carried out against the random split, which is the pattern that produces exactly this result -- the extra flexibility fitted the development period rather than the signal.</td>
+      <td>Adopt the benchmark as the production model, or resubmit the gradient-boosted model with its hyperparameters selected against an out-of-time sample and with evidence that it beats the benchmark there. Either way the benchmark comparison belongs in the submission rather than in the review.</td>
+    </tr>
+    <tr>
+      <td>VF-03</td>
+      <td>Medium</td>
+      <td>Calibration</td>
+      <td>Predicted probabilities are inflated by the class balancing step</td>
+      <td>Measured with the post-outcome variable removed, average predicted churn probability is 32.9% against an observed rate of 10.0%, a factor of 3.3. Weighted calibration error across ten bands is 0.229, and every band over-predicts.</td>
+      <td>The minority class was oversampled to a 50/50 base rate and the output was never mapped back, so the model's probabilities are relative scores presented as absolute ones. Any calculation that multiplies them by a dollar value -- expected loss of balance, retention campaign business case, provisioning input -- is overstated by roughly the same factor.</td>
+      <td>Either drop the oversampling and use class weights, or keep it and fit a calibration mapping on an untouched holdout. Restrict the current version to ranking use only until one of the two is in place, and say so on the model's approved-use record.</td>
+    </tr>
+    <tr>
+      <td>VF-04</td>
+      <td>Medium</td>
+      <td>Data quality</td>
+      <td>Input extract fails data quality rules that the submission does not mention</td>
+      <td>7 of 8 rules fail, across Accuracy, Completeness, Consistency, Uniqueness, Validity. 480 records (1.5%) are duplicated on customer_id and 3,892 records (12.0%) carry a balance of zero that stands in for a value that was never supplied.</td>
+      <td>Duplicated customers are counted twice in the training data and are over-weighted by the fit. Averaging a balance field that encodes 'not supplied' as zero understates average balance across the portfolio, which affects both the model input and the reporting built on the same extract.</td>
+      <td>De-duplicate on customer_id at the point of extraction, replace both credit score sentinels with a null and an explicit missing indicator, and separate a nil balance from an unsupplied one before the next refit. Document the treatment in the model development document.</td>
+    </tr>
+    <tr>
+      <td>VF-05</td>
+      <td>Medium</td>
+      <td>Stability</td>
+      <td>Input population has shifted materially within six months of the build</td>
+      <td>2 of 14 model inputs breach the red threshold of 0.25 on the six months following the development window: channel (PSI 0.44), digital_logins_90d (PSI 0.40). A further 0 sit in the amber band. The model score itself has a PSI of 0.02 (Green).</td>
+      <td>The shift is a channel migration, not a data error -- customers moved to mobile and their engagement counts moved with them. The model was fitted on a branch-weighted portfolio and is being applied to a mobile-weighted one. The score distribution is the part worth noting: at PSI 0.02 it sits well inside the green band, so a monitoring process watching the score alone would report this model as stable while two of its inputs moved by more than four times the red threshold. The submission contains no monitoring plan of either kind.</td>
+      <td>Put monthly PSI monitoring in place on every input, not only on the score, using the same 0.10/0.25 thresholds. Tie a red breach to a mandatory review, and shorten the refit cycle for this model to match the rate at which the channel mix is moving.</td>
+    </tr>
+    <tr>
+      <td>VF-06</td>
+      <td>Medium</td>
+      <td>Fairness</td>
+      <td>Age band selection rate fails the four-fifths test, through a bundle code that restates age</td>
+      <td>At the top 20% campaign cut, customers in the 60+ band are selected at 8.7% against 30.1% for the highest band, an impact ratio of 0.29. Separately, product_bundle_code alone identifies customers aged 60 and over with an AUC of 0.947, so age band is available to the model whether or not age is used directly.</td>
+      <td>Part of the gap reflects a real difference in churn risk, and the observed churn column supports that. The problem is not the gap on its own but that the model reaches it through a near-perfect stand-in for a protected ground, so removing age from the feature list would not have changed the outcome and the submission's statement that no protected characteristic is used is not accurate. A retention offer is a benefit, so the group being under-selected is being withheld from.</td>
+      <td>Refit without product_bundle_code and report the performance cost. If the field is retained, record the business justification, disclose the proxy relationship in the model documentation, and add selection rate by age band to the monthly monitoring pack.</td>
+    </tr>
+    <tr>
+      <td>VF-07</td>
+      <td>Medium</td>
+      <td>Performance testing</td>
+      <td>Only performance evidence is a random split, which cannot detect a population shift</td>
+      <td>The submission's sole performance evidence is a random 30% holdout drawn from the same twelve months as the training data. Holding the post-outcome variable out of both, the random holdout gives AUC 0.676 against 0.666 on the following six months, an inflation of 0.010.</td>
+      <td>The inflation itself is small. The design problem is not: a random split draws its test customers from the same period as its training customers, so it cannot detect population movement by construction. 2 inputs breach the red stability threshold over the six months following the build (section 9), and no test in the submission was capable of showing that.</td>
+      <td>Make an out-of-time holdout the primary performance evidence for this model class and keep the random split as a secondary diagnostic. Restate the business case on the out-of-time figure.</td>
+    </tr>
+    <tr>
+      <td>VF-08</td>
+      <td>Low</td>
+      <td>Documentation</td>
+      <td>Development document is missing sections the standard requires</td>
+      <td>3 of 9 required sections are absent: Assumptions and limitations; Ongoing monitoring plan; Benchmark comparison.</td>
+      <td>Without a stated limitations section there is no record of where the developer already knows the model should not be used, and without a monitoring plan there is no agreed trigger for the next review. Both gaps put the whole burden of catching deterioration on the annual validation cycle, which is too slow for a model whose inputs move within six months.</td>
+      <td>Complete the missing sections before resubmission, and add the section checklist to the intake gate so an incomplete submission is returned before review effort is spent on it.</td>
+    </tr>
+  </tbody>
+</table>
+<h2>13. Limitations of this review</h2>
+<p>These bound what the conclusion above can be taken to mean.</p>
+<ul><li>The portfolio is generated rather than drawn from the bank's systems, so the magnitudes are illustrative. The tests, thresholds and the reasoning are the transferable part; the numbers are not.</li><li>Production scoring code was not reviewed, so this report cannot say whether the fitted model and the deployed model agree.</li><li>Only age band and province were available for selection rate testing. The bank does not collect other protected characteristics, so no statement is made about grounds that were not testable.</li><li>Outcomes were observed over a six-month horizon. A customer who leaves in month seven is counted as retained throughout.</li><li>The benchmark is one logistic regression on one variable list, and the generated portfolio draws churn from a linear log-odds model. The benchmark is therefore close to the true functional form by construction and is advantaged in this comparison. VF-02 stands as a statement about this model on this period, and about the absence of any benchmark in the submission. It is not evidence about model classes in general.</li><li>Every result comes from a single seed. Sampling variation across seeds was not quantified and would change the third decimal place.</li></ul>
+<h2>14. Conditions for approval</h2>
+<p>The model is not approved for use in its current form. The following would change that, in the order they should be addressed.</p>
+<ul><li>VF-01 must be closed before any use. Remove the post-outcome variable, refit, and restate every performance figure in the submission. Until that is done the submission describes a model the bank cannot run.</li><li>VF-02 must be closed before any use. Either adopt the benchmark, or resubmit the gradient-boosted model with its hyperparameters selected against an out-of-time sample and evidence that it beats the benchmark there. A model that is less accurate than its own benchmark has no remaining justification for the burden it carries.</li><li>VF-03, VF-05, VF-06 and VF-07 may be carried with named compensating controls: restrict the model to ranking use until a calibration mapping is fitted, start monthly stability monitoring on every input rather than on the score alone, either drop the bundle code or record a justification and monitor selection rate by age band, and make an out-of-time sample the primary performance evidence.</li><li>VF-04 and VF-08 should be closed before the next scheduled review and do not block use on their own.</li><li>A resubmission should include the out-of-time result as the headline figure, the benchmark comparison, and the monitoring plan, so that the next review starts from evidence rather than from reconstruction.</li></ul>
+</body></html>

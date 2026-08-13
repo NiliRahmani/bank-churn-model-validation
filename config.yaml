@@ -1,0 +1,49 @@
+# Single source of truth for the review. Everything downstream is seeded from
+# here so the report regenerates byte-for-byte on a clean machine.
+seed: 42
+
+review:
+  model_id: "RB-CHURN-07"
+  model_name: "Retail Banking Attrition Propensity Model"
+  version: "2.1"
+  review_date: "2024-09-30"
+  reviewer: "Niloufar Rahmani"
+  # Rating the model must reach before it is used unsupervised on the portfolio.
+  approval_threshold: "no open High findings"
+  # A development sample older than this at the review date is called out.
+  max_development_age_months: 12
+
+portfolio:
+  development:
+    n_customers: 24000
+    window: "2023-01-01 to 2023-12-31"
+  out_of_time:
+    n_customers: 8000
+    window: "2024-01-01 to 2024-06-30"
+
+# The developer's submitted training recipe, transcribed from section 4 of
+# developer/model_development_document.md so the replication test uses their
+# settings and not mine.
+champion:
+  test_size: 0.30
+  balance_classes: true
+  learning_rate: 0.06
+  max_iter: 250
+  max_leaf_nodes: 31
+  min_samples_leaf: 40
+
+validation:
+  # A replication is accepted if my AUC lands within this of the reported AUC.
+  replication_tolerance: 0.010
+  # A single predictor this strong on its own is treated as a timing question
+  # until the developer can show it is knowable at the scoring date.
+  single_variable_auc_flag: 0.850
+  psi_amber: 0.10
+  psi_red: 0.25
+  # Share of the portfolio the retention campaign can actually afford to contact.
+  selection_rate_cut: 0.20
+  four_fifths_threshold: 0.80
+  calibration_bins: 10
+  # A challenger within this distance of the champion makes the extra
+  # complexity hard to defend.
+  challenger_parity_margin: 0.020

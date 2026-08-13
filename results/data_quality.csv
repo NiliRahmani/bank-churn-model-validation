@@ -1,0 +1,9 @@
+dimension,rule,records_failed,share_failed,outcome,note
+Uniqueness,customer_id appears once per observation window,480,0.0148,Fail,Extract was appended twice for part of the load.
+Completeness,age is populated,68,0.0021,Fail,Age written as 0 where the value was not captured.
+Completeness,credit_score is populated,355,0.0109,Fail,Two sentinel conventions in use: 999 and -1.
+Validity,credit_score falls within 300-900,355,0.0109,Fail,Same records as the sentinel values above.
+Validity,province uses the two-letter standard,879,0.0271,Fail,Long-form names and lower case arriving from upstream systems.
+Consistency,province has at most 6 distinct values,15,0.0005,Fail,21 distinct values observed for 6 real provinces.
+Accuracy,balance distinguishes a nil balance from a missing one,3892,0.1198,Fail,"Zero is being used for both, which an average cannot tell apart."
+Timeliness,development sample is under 12 months old at review,0,0.0,Pass,Development window closed 9 months before this review.

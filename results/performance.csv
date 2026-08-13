@@ -1,0 +1,5 @@
+model,sample,customers,churn_rate,auc,gini,ks,calibration_error,lift_top_20pct
+Champion as submitted,Developer random holdout,7200,0.1,0.9046,0.8092,0.734,0.0779,4.188
+Champion as submitted,Out-of-time,8000,0.1522,0.8997,0.7993,0.725,0.0617,4.002
+Champion without post-outcome variable,Out-of-time,8000,0.1522,0.6661,0.3322,0.2476,0.2023,1.884
+Logistic benchmark (8 variables),Out-of-time,8000,0.1522,0.7004,0.4008,0.307,0.0521,2.028

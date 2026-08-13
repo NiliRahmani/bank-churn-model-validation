@@ -1,0 +1,5 @@
+age_band,customers,selected,observed_churn,selection_rate,impact_ratio,meets_four_fifths
+18-29,469,141,0.2175,0.3006,1.0,Yes
+30-44,2878,806,0.1744,0.2801,0.9315,Yes
+45-59,2739,487,0.1431,0.1778,0.5914,No
+60+,1914,166,0.116,0.0867,0.2885,No

@@ -1,0 +1,7 @@
+province,customers,selected,observed_churn,selection_rate,impact_ratio,meets_four_fifths
+AB,1034,227,0.1528,0.2195,1.0,Yes
+BC,1219,214,0.1436,0.1756,0.7997,No
+MB,438,90,0.1689,0.2055,0.936,Yes
+NS,372,71,0.1532,0.1909,0.8694,Yes
+ON,3116,682,0.1508,0.2189,0.997,Yes
+QC,1821,316,0.156,0.1735,0.7904,No

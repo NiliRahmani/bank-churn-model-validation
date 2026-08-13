@@ -1,0 +1,15 @@
+variable,standalone_auc,flagged
+retention_call_flag,0.8718,Yes
+is_active_member,0.6265,No
+tenure_months,0.5908,No
+complaints_12m,0.5743,No
+age,0.5729,No
+credit_score,0.5648,No
+num_products,0.5553,No
+channel,0.5439,No
+digital_logins_90d,0.5407,No
+product_bundle_code,0.538,No
+estimated_income,0.5287,No
+has_credit_card,0.5255,No
+province,0.5139,No
+balance,0.5078,No

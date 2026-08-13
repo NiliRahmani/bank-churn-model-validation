@@ -1,0 +1,16 @@
+{
+  "reported_auc": 0.9046,
+  "oot_auc": 0.8997,
+  "corrected_oot_auc": 0.6661,
+  "corrected_holdout_auc": 0.6761355452674896,
+  "challenger_oot_auc": 0.7004,
+  "no_bundle_oot_auc": 0.6641,
+  "challenger_variables": 8,
+  "top_variable_auc": 0.8718,
+  "next_variable_auc": 0.6265,
+  "mean_predicted": 0.32881334833852793,
+  "observed_rate": 0.1,
+  "score_psi": 0.0161,
+  "score_psi_band": "Green",
+  "bundle_proxy": 0.9471244794655221
+}

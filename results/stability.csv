@@ -1,0 +1,15 @@
+variable,type,psi,band
+channel,categorical,0.4367,Red
+digital_logins_90d,numeric,0.3995,Red
+age,numeric,0.0017,Green
+balance,numeric,0.0016,Green
+credit_score,numeric,0.0015,Green
+province,categorical,0.0014,Green
+estimated_income,numeric,0.0012,Green
+tenure_months,numeric,0.0012,Green
+num_products,numeric,0.0002,Green
+product_bundle_code,categorical,0.0002,Green
+complaints_12m,numeric,0.0001,Green
+has_credit_card,numeric,0.0,Green
+is_active_member,numeric,0.0,Green
+retention_call_flag,numeric,0.0,Green

@@ -1,0 +1,9 @@
+{
+  "model_id": "RB-CHURN-07",
+  "version": "2.1",
+  "sample": "random 30% holdout of the development window",
+  "n_customers": 7200,
+  "holdout_auc": 0.9046,
+  "holdout_gini": 0.8092,
+  "source": "Section 5 of model_development_document.md, quoted to four decimal places by the developer on request during the review."
+}

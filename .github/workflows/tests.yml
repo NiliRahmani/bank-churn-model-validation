@@ -1,0 +1,58 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run the test suite
+        run: pytest -q
+
+      - name: Run the full review end to end
+        run: python run.py
+
+      # Deliberately loose. The exact third decimal place moves with a pandas or
+      # scikit-learn release, and a check that fails on a dependency bump is a
+      # check people start ignoring. These assert the conclusions the report is
+      # built on, each with enough headroom to survive a version change.
+      - name: Confirm the review still reaches the same conclusion
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          import pandas as pd
+
+          register = pd.read_csv("results/findings_register.csv")
+          counts = register["severity"].value_counts().to_dict()
+          key = json.loads(Path("results/headline_metrics.json").read_text())
+
+          # The post-outcome variable is worth about 0.24 AUC here.
+          assert key["reported_auc"] - key["corrected_oot_auc"] > 0.15, key
+          # At least one finding must block approval, or the report's outcome is wrong.
+          assert counts.get("High", 0) >= 1, counts
+          assert len(register) >= 7, len(register)
+          assert (register["ref"] == "VF-01").any(), "the leakage finding disappeared"
+
+          print("Findings:", counts)
+          print("Outcome depends on {} High finding(s)".format(counts.get("High", 0)))
+          print("AUC {:.3f} -> {:.3f}".format(key["reported_auc"], key["corrected_oot_auc"]))
+          PY

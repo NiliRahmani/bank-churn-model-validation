@@ -1,5 +1,7 @@
 # bank-churn-model-validation
 
+[![tests](https://github.com/NiliRahmani/bank-churn-model-validation/actions/workflows/tests.yml/badge.svg)](https://github.com/NiliRahmani/bank-churn-model-validation/actions/workflows/tests.yml)
+
 **An independent validation of a retail-banking churn model — the review, not the model.**
 
 Most churn projects build a model and report how well it scores. This one does
